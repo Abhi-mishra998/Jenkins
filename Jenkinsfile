@@ -1,11 +1,16 @@
+// =========================================================================
+// Jenkins Pipeline: Build and Push Docker Image + Email Notification
+// Author: Abhishek Mishra
+// =========================================================================
+
 pipeline {
     agent any
 
     environment {
-        // DockerHub credentials (configured in Jenkins Credentials)
+        // DockerHub credentials (configured in Jenkins Credentials Manager)
         DOCKERHUB_CREDENTIALS = credentials('dockerhub')
 
-        // Docker image name (your repository)
+        // Docker image name
         IMAGE_NAME = "abhishek8056/jenkins-repo"
 
         // Email for build notifications
@@ -16,141 +21,90 @@ pipeline {
         // Show timestamps in console output
         timestamps()
 
-        // Enable colored output in Jenkins logs
-        ansiColor('xterm')
-
-        // Prevent multiple builds running at the same time
+        // Prevent multiple builds at the same time
         disableConcurrentBuilds()
-
-        // Keep only the last 10 build logs to save space
-        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     stages {
-        // Step 1: Clone the repository
+
+        // Stage 1: Clone the GitHub repository
         stage('Clone Repository') {
             steps {
-                echo "[INFO] Cloning repository..."
+                echo "Cloning repository..."
                 git branch: 'main', url: 'https://github.com/Abhi-mishra998/Jenkins.git'
             }
         }
 
-        // Step 2: Build the Docker image
+        // Stage 2: Build Docker image
         stage('Build Docker Image') {
             steps {
-                echo "[BUILD] Building Docker image..."
+                echo "Building Docker image..."
                 sh 'docker build -t $IMAGE_NAME:latest .'
             }
         }
 
-        // Step 3: Log in to DockerHub using Jenkins credentials
+        // Stage 3: Login to DockerHub
         stage('Login to DockerHub') {
             steps {
-                echo "[LOGIN] Logging into DockerHub..."
+                echo "Logging in to DockerHub..."
                 sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
             }
         }
 
-        // Step 4: Push Docker image to DockerHub
+        // Stage 4: Push Docker image to DockerHub
         stage('Push Docker Image') {
             steps {
-                echo "[PUSH] Pushing Docker image to DockerHub..."
+                echo "Pushing Docker image to DockerHub..."
                 sh 'docker push $IMAGE_NAME:latest'
             }
         }
     }
 
-    // Post-build actions (run after all stages)
     post {
 
-        // Always clean up workspace after build
+        // Always clean workspace after build
         always {
-            echo "[INFO] Cleaning workspace..."
+            echo "Cleaning workspace..."
             cleanWs()
         }
 
-        // Send email when build succeeds
+        // On build success
         success {
-            echo "[SUCCESS] Build completed successfully."
+            echo "Build succeeded."
             emailext(
                 to: "${NOTIFY_EMAIL}",
                 subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
-                Build Status: SUCCESS
+Build Status: SUCCESS
 
-                Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
-                Docker Image: ${IMAGE_NAME}:latest
-                Repository: https://github.com/Abhi-mishra998/Jenkins
+Job: ${env.JOB_NAME}
+Build Number: ${env.BUILD_NUMBER}
+Docker Image: ${IMAGE_NAME}:latest
+Repository: https://github.com/Abhi-mishra998/Jenkins
+Build URL: ${env.BUILD_URL}
 
-                View Details:
-                ${env.BUILD_URL}
-
-                -- Jenkins CI/CD Pipeline Notification
-                """,
+-- Jenkins CI/CD Pipeline Notification
+""",
                 mimeType: 'text/plain'
             )
         }
 
-        // Send email when build fails
+        // On build failure
         failure {
-            echo "[ERROR] Build failed."
+            echo "Build failed."
             emailext(
                 to: "${NOTIFY_EMAIL}",
                 subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
-                Build Status: FAILURE
+Build Status: FAILURE
 
-                Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
-                Repository: https://github.com/Abhi-mishra998/Jenkins
+Job: ${env.JOB_NAME}
+Build Number: ${env.BUILD_NUMBER}
+Repository: https://github.com/Abhi-mishra998/Jenkins
+Build URL: ${env.BUILD_URL}
 
-                Check Jenkins console for more details:
-                ${env.BUILD_URL}
-
-                -- Jenkins CI/CD Pipeline Notification
-                """,
-                mimeType: 'text/plain'
-            )
-        }
-
-        // Send email if build is unstable (e.g., test failures)
-        unstable {
-            echo "[WARNING] Build marked as unstable."
-            emailext(
-                to: "${NOTIFY_EMAIL}",
-                subject: "UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                Build Status: UNSTABLE
-
-                Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
-
-                Check Jenkins console for warnings:
-                ${env.BUILD_URL}
-
-                -- Jenkins CI/CD Pipeline Notification
-                """,
-                mimeType: 'text/plain'
-            )
-        }
-
-        // Send email if build is aborted manually
-        aborted {
-            echo "[INFO] Build aborted by user."
-            emailext(
-                to: "${NOTIFY_EMAIL}",
-                subject: "ABORTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                Build Status: ABORTED
-
-                Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
-
-                The build was manually aborted by a user.
-
-                -- Jenkins CI/CD Pipeline Notification
-                """,
+-- Jenkins CI/CD Pipeline Notification
+""",
                 mimeType: 'text/plain'
             )
         }
