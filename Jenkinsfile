@@ -21,8 +21,11 @@ pipeline {
         // Show timestamps in console output
         timestamps()
 
-        // Prevent multiple builds at the same time
+        // Prevent multiple builds from running at the same time
         disableConcurrentBuilds()
+
+        // Keep only the last 10 build logs to save space
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     stages {
@@ -102,6 +105,46 @@ Job: ${env.JOB_NAME}
 Build Number: ${env.BUILD_NUMBER}
 Repository: https://github.com/Abhi-mishra998/Jenkins
 Build URL: ${env.BUILD_URL}
+
+-- Jenkins CI/CD Pipeline Notification
+""",
+                mimeType: 'text/plain'
+            )
+        }
+
+        // On build unstable (optional)
+        unstable {
+            echo "Build unstable."
+            emailext(
+                to: "${NOTIFY_EMAIL}",
+                subject: "UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+Build Status: UNSTABLE
+
+Job: ${env.JOB_NAME}
+Build Number: ${env.BUILD_NUMBER}
+Check Jenkins console for warnings:
+${env.BUILD_URL}
+
+-- Jenkins CI/CD Pipeline Notification
+""",
+                mimeType: 'text/plain'
+            )
+        }
+
+        // On build aborted manually (optional)
+        aborted {
+            echo "Build aborted by user."
+            emailext(
+                to: "${NOTIFY_EMAIL}",
+                subject: "ABORTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: """
+Build Status: ABORTED
+
+Job: ${env.JOB_NAME}
+Build Number: ${env.BUILD_NUMBER}
+
+The build was manually aborted by a user.
 
 -- Jenkins CI/CD Pipeline Notification
 """,
